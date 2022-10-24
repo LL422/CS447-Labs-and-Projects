@@ -286,7 +286,25 @@ leave
 
 draw_snake:
 enter
-	# TODO
+enter s0
+	li s0, 0
+	lw t0, snake_len
+	_loop:
+		lb a0, snake_x(s0) # a0 = snake_y[s0]
+		mul a0, a0, GRID_CELL_SIZE # a0 = a0 * snake_y[s0]
+		
+		lb a1, snake_y(s0) # a1 = snake_y[s0]
+		mul a1, a1, GRID_CELL_SIZE
+	
+		la a2, tex_snake_segment
+		
+		jal display_blit_5x5_trans
+		
+		
+		add s0, s0, 1
+		blt s0, t0, _loop
+		
+leave s0
 leave
 
 # ------------------------------------------------------------------------------------------------
