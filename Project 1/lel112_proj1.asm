@@ -187,38 +187,203 @@ leave
 
 # checks for the arrow keys to change the snake's direction.
 check_input:
-enter
-	# TODO
-leave
+enter s0, s1, s2, s3
+	
+	lw s3, snake_dir_changed
+	bne s3, 0, _break
+	
+	jal input_get_keys_held
+	beq v0, KEY_U, _north
+	beq v0, KEY_D, _south
+	beq v0, KEY_R, _east
+	beq v0, KEY_L, _west
+	j _break
+	
+		_north:
+			lw s0, snake_dir
+			beq s0, DIR_N, _break
+			beq s0, DIR_S, _break
+			li s2, DIR_N
+			sw, s2, snake_dir
+			li s1, 1
+			sw s1, snake_dir_changed
+		
+		_south:
+			lw s0, snake_dir
+			beq s0, DIR_N, _break
+			beq s0, DIR_S, _break
+			li s2, DIR_S
+			sw, s2, snake_dir
+			li s1, 1
+			sw s1, snake_dir_changed
+			
+			j _break
+			
+		_east:
+			lw s0, snake_dir
+			beq s0, DIR_E, _break
+			beq s0, DIR_W, _break
+			li s2, DIR_E
+			sw s2, snake_dir
+			li s1, 1
+			sw s1, snake_dir_changed
+			
+			
+		_west:
+			lw s0, snake_dir
+			beq s0, DIR_E, _break
+			beq s0, DIR_W, _break
+			li s2, DIR_W
+			sw, s2, snake_dir
+			li s1, 1
+			sw s1, snake_dir_changed
+			
+			
+		
+	
+	_break:
+		
+leave s0, s1, s2, s3
 
 # ------------------------------------------------------------------------------------------------
 
 # update the snake.
 update_snake:
-enter
-	# TODO
-leave
+
+enter s0, s1, s2
+
+
+	lw s0, snake_move_timer
+	beq s0, 0, _else # if snake_move_timer == 0, go to else
+		sub s0, s0, 1
+		sw s0, snake_move_timer
+	j _endif
+	
+	_else:
+		
+		li s1, SNAKE_MOVE_DELAY
+		sw s1, snake_move_timer
+		li, s2, 0
+		sw s2, snake_dir_changed
+		jal move_snake
+	_endif:
+		
+
+leave s0, s1, s2
 
 # ------------------------------------------------------------------------------------------------
 
 move_snake:
-enter
-	# TODO
-leave
+enter s0, s1, s2, s3, s4
+
+	jal compute_next_snake_pos
+	move s0, v0
+	move s1, v1
+	
+	blt s0, 0, _game_over
+	bge s0, GRID_WIDTH, _game_over
+	blt s1, 0, _game_over
+	bge s1, GRID_HEIGHT, _game_over
+	
+	move a0, s0
+	move a1, s1
+	jal is_point_on_snake
+	beq v0, 1, _game_over
+	
+	
+	lw s2, apple_x
+	lw s3, apple_y
+	bne s0, s2, _move_forward
+	bne s1, s3, _move_forward
+	j _eat_apple
+	
+	_move_forward:
+		jal shift_snake_segments
+		sb, s0, snake_x
+		sb, s1, snake_y
+			
+		j _break
+	
+	_eat_apple:
+		lw s4, apples_eaten
+		add s4, s4, 1
+		sw s4, apples_eaten
+		
+		lw t9, snake_len
+		add t9, t9, 1
+		sw t9, snake_len
+		
+		jal shift_snake_segments
+		sb, s0, snake_x
+		sb, s1, snake_y
+		jal move_apple
+		
+		
+		j _break
+	_game_over:
+		li t9, 1
+		sw t9, lost_game
+		j _break
+		
+		
+	_break:
+	
+leave s0, s1, s2, s3, s4
 
 # ------------------------------------------------------------------------------------------------
 
 shift_snake_segments:
-enter
-	# TODO
-leave
+enter s0, s1, s2, s3, s4, s5
+
+	lw s0, snake_len
+	sub s0, s0, 1
+	
+	_loop:
+		move s3, s0
+		sub s3, s3, 1
+		
+		
+		
+		lb s4, snake_x(s3) #s4 = snake_x[i-1]
+		lb s5, snake_y(s3) #s5 = snake_y[i-1]
+		
+		sb, s4, snake_x(s0)
+		sb, s5, snake_y(s0)
+		
+		
+		sub s0, s0, 1
+		bge s0, 1, _loop
+		
+leave s0, s1, s2, s3, s4, s5
 
 # ------------------------------------------------------------------------------------------------
 
 move_apple:
-enter
-	# TODO
-leave
+enter s1, s2
+	_loop:
+		li a0, 0
+		li a1, GRID_WIDTH
+		li v0, 42
+		syscall
+		
+		move s0, v0
+		
+		li a0, 0
+		li a1, GRID_HEIGHT
+		li v0, 42
+		syscall
+		
+		move s1, v0
+		
+		move a0, s0
+		move a1, s1
+		
+		jal is_point_on_snake
+		beq v0, 1, _loop
+		
+	sw a0, apple_x
+	sw a1, apple_y
+leave s1, s2
 
 # ------------------------------------------------------------------------------------------------
 
@@ -285,10 +450,11 @@ leave
 # ------------------------------------------------------------------------------------------------
 
 draw_snake:
-enter
-enter s0
+enter s0, s1
+
+	
 	li s0, 0
-	lw t0, snake_len
+	lw s1, snake_len
 	_loop:
 		lb a0, snake_x(s0) # a0 = snake_y[s0]
 		mul a0, a0, GRID_CELL_SIZE # a0 = a0 * snake_y[s0]
@@ -298,20 +464,31 @@ enter s0
 	
 		la a2, tex_snake_segment
 		
+		bne s0, 0, _else # if s0!=0, go to else
+			lw t2, snake_dir # t2 = snake_dir
+			mul t2, t2, 4 #t2 = t2*4
+			lw a2 tex_snake_head(t2) #a2 = tex_snake_head[snake_dir*4]
+		j _endif
+		
+		_else:
+			la a2, tex_snake_segment
+		_endif:
+		
 		jal display_blit_5x5_trans
 		
 		
 		add s0, s0, 1
-		blt s0, t0, _loop
 		
-leave s0
-leave
+		blt s0, s1, _loop
+		
+leave s0, s1
+
 
 # ------------------------------------------------------------------------------------------------
 
 draw_apple:
-enter
-enter s0, s1, s2
+
+enter s0, s1
 	# TODO
 	lw s0, apple_x
 	lw s1, apple_y
@@ -320,8 +497,8 @@ enter s0, s1, s2
 	la a2, tex_apple
 	jal display_blit_5x5_trans
 	
-leave s0, s1, s2
-leave
+leave s0, s1
+
 
 # ------------------------------------------------------------------------------------------------
 
